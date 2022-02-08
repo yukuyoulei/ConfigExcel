@@ -141,7 +141,7 @@ namespace Excel2Code
 				var keyType = rowType.GetCell(0).ToString();
 				var keyParamName = paramNameRow.GetCell(0).ToString();
 
-				res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}public static {classname} OnGet{classname}({keyType} {keyParamName})");
+				res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}public static {classname} OnGet{classname}From_{paramname}({keyType} {keyParamName})");
 				res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}{{");
 				res = Utils.AppendLine(res, $"{Utils.GetTabs(2)}System.Diagnostics.Debug.Assert({paramname}.ContainsKey({keyParamName}), $\"Invalid {keyParamName} {{{keyParamName}}}\");");
 				res = Utils.AppendLine(res, $"{Utils.GetTabs(2)}return {paramname}[{keyParamName}];");

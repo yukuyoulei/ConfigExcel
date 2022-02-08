@@ -9,22 +9,23 @@ namespace Excel2Code
 		{
 			if (!Directory.Exists("Codes"))
 				Directory.CreateDirectory("Codes");
-			if (args[0] == "-dir")
+			if (args.Length == 0)
 			{
-				var fs = Directory.GetFiles(args[1]);
-				foreach (var f in fs)
-				{
-					var finfo = new FileInfo(f);
-					string fileExt = finfo.Extension.ToLower();
-					if (fileExt == "xls" || fileExt == ".xlsx")
-						Excel2Code.Generate(f);
-				}
+				Console.WriteLine("Input a dir:");
+				var dir = Console.ReadLine();
+				Excel2Code.GenerateFromDir(dir);
+			}
+			else if (args[0] == "-dir")
+			{
+				Excel2Code.GenerateFromDir(args[1]);
 			}
 			else
 				foreach (var f in args)
 				{
 					Excel2Code.Generate(f);
 				}
+			Console.WriteLine("Press any key to exit...");
+			Console.ReadKey();
 		}
 	}
 }
