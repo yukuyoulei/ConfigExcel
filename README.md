@@ -30,3 +30,13 @@ c.如果第一行第一列中包含list，则被识别为列表，即List<类>�
 
 ------------------
 Excel2CSharp/Excel2Code/bin/Debug/net5.0/Excels/目录下有目前支持的所有写法的例子，生成的C#文件在Excel2CSharp/Excel2Code/bin/Debug/net5.0/Codes/目录下
+
+------------------
+使用方法：
+
+·Excel2Code -dir excels
+
+·Excel2Code excels/test.xlsx excels/other1.xlsx  excels/other2.xlsx 
+
+·直接双击Excel2Code.exe，然后输入目录
+
