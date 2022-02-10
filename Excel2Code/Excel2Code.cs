@@ -127,7 +127,7 @@ namespace Excel2Code
 					for (var j = 0; j < columns; j++)
 					{
 						var realValue = CellToString(row.GetCell(j), rowType.GetCell(j).ToString());
-						if (realValue == null)
+						if (string.IsNullOrEmpty(realValue))
 							break;
 						res = Utils.AppendLine(res, $"{Utils.GetTabs(3)}{paramNameRow.GetCell(j)} = {realValue},");
 					}
@@ -141,7 +141,7 @@ namespace Excel2Code
 				var keyType = rowType.GetCell(0).ToString();
 				var keyParamName = paramNameRow.GetCell(0).ToString();
 
-				res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}public static {classname} OnGet{classname}From_{paramname}({keyType} {keyParamName})");
+				res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}public static {classname} OnGetFrom_{paramname}({keyType} {keyParamName})");
 				res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}{{");
 				res = Utils.AppendLine(res, $"{Utils.GetTabs(2)}System.Diagnostics.Debug.Assert({paramname}.ContainsKey({keyParamName}), $\"Invalid {keyParamName} {{{keyParamName}}}\");");
 				res = Utils.AppendLine(res, $"{Utils.GetTabs(2)}return {paramname}[{keyParamName}];");
@@ -162,7 +162,7 @@ namespace Excel2Code
 					for (var j = 0; j < columns; j++)
 					{
 						var realValue = CellToString(row.GetCell(j), rowType.GetCell(j).ToString());
-						if (realValue == null)
+						if (string.IsNullOrEmpty(realValue))
 							break;
 						res = Utils.AppendLine(res, $"{Utils.GetTabs(4)}{paramNameRow.GetCell(j)} = {realValue},");
 					}
@@ -196,7 +196,7 @@ namespace Excel2Code
 				for (var j = 0; j < columns; j++)
 				{
 					var realValue = CellToString(row.GetCell(j), rowType.GetCell(j).ToString());
-					if (realValue == null)
+					if (string.IsNullOrEmpty(realValue))
 						break;
 					res = Utils.AppendLine(res, $"{Utils.GetTabs(2)}{rowParamName.GetCell(j)} = {realValue},");
 				}
@@ -235,11 +235,13 @@ namespace Excel2Code
 			{
 				var row = sheet.GetRow(i);
 				var valueType = row.GetCell(0);
-				var valueName = row.GetCell(1);
+				var valueName = row.GetCell(1).ToString();
 				var value = row.GetCell(2);
 				var realType = valueType == null ? GetValueType(value) : valueType.ToString();
 				var realValue = CellToString(value, realType);
 				if (realValue == null)
+					return res;
+				if (string.IsNullOrEmpty(valueName))
 					return res;
 				res = Utils.AppendLine(res,
 					$"{Utils.GetTabs(1)}public static {realType} {valueName} = {realValue};"
