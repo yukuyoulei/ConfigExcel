@@ -91,7 +91,10 @@ namespace Excel2Code
 			var rowParamName = sheet.GetRow(2);
 			for (var i = 0; i < rowType.LastCellNum; i++)
 			{
-				res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}public {rowType.GetCell(i)} {rowParamName.GetCell(i)}; //{rowComment.GetCell(i)}");
+				var paramName = rowParamName.GetCell(i).ToString();
+				if (string.IsNullOrEmpty(paramName))
+					break;
+				res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}public {rowType.GetCell(i)} {paramName}; //{rowComment.GetCell(i)}");
 			}
 			res = Utils.AppendLine(res, "}");
 			return res;
@@ -129,7 +132,10 @@ namespace Excel2Code
 						var realValue = CellToString(row.GetCell(j), rowType.GetCell(j).ToString());
 						if (string.IsNullOrEmpty(realValue))
 							break;
-						res = Utils.AppendLine(res, $"{Utils.GetTabs(3)}{paramNameRow.GetCell(j)} = {realValue},");
+						var paramName = paramNameRow.GetCell(j).ToString();
+						if (string.IsNullOrEmpty(paramName))
+							break;
+						res = Utils.AppendLine(res, $"{Utils.GetTabs(3)}{paramName} = {realValue},");
 					}
 					res = Utils.AppendLine(res, $"{Utils.GetTabs(2)}}},");
 				}
@@ -164,7 +170,10 @@ namespace Excel2Code
 						var realValue = CellToString(row.GetCell(j), rowType.GetCell(j).ToString());
 						if (string.IsNullOrEmpty(realValue))
 							break;
-						res = Utils.AppendLine(res, $"{Utils.GetTabs(4)}{paramNameRow.GetCell(j)} = {realValue},");
+						var paramName = paramNameRow.GetCell(j).ToString();
+						if (string.IsNullOrEmpty(paramName))
+							break;
+						res = Utils.AppendLine(res, $"{Utils.GetTabs(4)}{paramName} = {realValue},");
 					}
 					res = Utils.AppendLine(res, $"{Utils.GetTabs(3)}}}");
 					res = Utils.AppendLine(res, $"{Utils.GetTabs(2)}}},");
@@ -187,8 +196,8 @@ namespace Excel2Code
 			var res = "";
 			res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}public static {classname} {paramname} = new {classname}()");
 			res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}{{");
-			var rowParamName = sheet.GetRow(2);
-			var columns = rowParamName.LastCellNum;
+			var paramNameRow = sheet.GetRow(2);
+			var columns = paramNameRow.LastCellNum;
 			var rowType = sheet.GetRow(1);
 			for (int i = 3; i <= sheet.LastRowNum; i++)
 			{
@@ -198,7 +207,10 @@ namespace Excel2Code
 					var realValue = CellToString(row.GetCell(j), rowType.GetCell(j).ToString());
 					if (string.IsNullOrEmpty(realValue))
 						break;
-					res = Utils.AppendLine(res, $"{Utils.GetTabs(2)}{rowParamName.GetCell(j)} = {realValue},");
+					var paramName = paramNameRow.GetCell(j).ToString();
+					if (string.IsNullOrEmpty(paramName))
+						break;
+					res = Utils.AppendLine(res, $"{Utils.GetTabs(2)}{paramName} = {realValue},");
 				}
 			}
 			res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}}};");
