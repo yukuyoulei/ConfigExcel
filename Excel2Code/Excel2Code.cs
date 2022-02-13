@@ -131,7 +131,7 @@ namespace Excel2Code
 					{
 						var realValue = CellToString(row.GetCell(j), rowType.GetCell(j).ToString());
 						if (string.IsNullOrEmpty(realValue))
-							break;
+							continue;
 						var paramName = paramNameRow.GetCell(j).ToString();
 						if (string.IsNullOrEmpty(paramName))
 							break;
@@ -169,7 +169,7 @@ namespace Excel2Code
 					{
 						var realValue = CellToString(row.GetCell(j), rowType.GetCell(j).ToString());
 						if (string.IsNullOrEmpty(realValue))
-							break;
+							continue;
 						var paramName = paramNameRow.GetCell(j).ToString();
 						if (string.IsNullOrEmpty(paramName))
 							break;
@@ -206,7 +206,7 @@ namespace Excel2Code
 				{
 					var realValue = CellToString(row.GetCell(j), rowType.GetCell(j).ToString());
 					if (string.IsNullOrEmpty(realValue))
-						break;
+						continue;
 					var paramName = paramNameRow.GetCell(j).ToString();
 					if (string.IsNullOrEmpty(paramName))
 						break;
