@@ -36,6 +36,10 @@ namespace Excel2Code
 			var classes = "";
 			var res = "";
 			res = Utils.AppendLine(res, "//本文件为自动生成，请勿手动修改");
+			res = Utils.AppendLine(res, "//--------------------------");
+			res = Utils.AppendLine(res, "//https://github.com/yukuyoulei/Excel2CSharp");
+			res = Utils.AppendLine(res, "//--------------------------");
+			res = Utils.AppendLine(res, "//");
 			res = Utils.AppendLine(res, "using System.Collections.Generic;");
 			res = Utils.AppendLine(res, $"public partial class {classname}");
 			res = Utils.AppendLine(res, "{");
@@ -141,7 +145,7 @@ namespace Excel2Code
 				var keyType = rowType.GetCell(0).ToString();
 				var keyParamName = paramNameRow.GetCell(0).ToString();
 
-				res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}public static {classname} OnGet{classname}From_{paramname}({keyType} {keyParamName})");
+				res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}public static {classname} OnGetFrom_{paramname}({keyType} {keyParamName})");
 				res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}{{");
 				res = Utils.AppendLine(res, $"{Utils.GetTabs(2)}System.Diagnostics.Debug.Assert({paramname}.ContainsKey({keyParamName}), $\"Invalid {keyParamName} {{{keyParamName}}}\");");
 				res = Utils.AppendLine(res, $"{Utils.GetTabs(2)}return {paramname}[{keyParamName}];");
@@ -240,6 +244,8 @@ namespace Excel2Code
 				var realType = valueType == null ? GetValueType(value) : valueType.ToString();
 				var realValue = CellToString(value, realType);
 				if (realValue == null)
+					return res;
+				if (string.IsNullOrEmpty(valueName.ToString()))
 					return res;
 				res = Utils.AppendLine(res,
 					$"{Utils.GetTabs(1)}public static {realType} {valueName} = {realValue};"
