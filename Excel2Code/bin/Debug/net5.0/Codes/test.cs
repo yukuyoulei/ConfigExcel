@@ -23,7 +23,7 @@ public partial class test
 		t7 = 12.222,
 	};
 
-	public static TestT OnGetTestTFrom_tt1(int t0)
+	public static TestT OnGetFrom_tt1(int t0)
 	{
 		System.Diagnostics.Debug.Assert(tt1.ContainsKey(t0), $"Invalid t0 {t0}");
 		return tt1[t0];
@@ -67,14 +67,13 @@ public partial class test
 				t2 = new int[]{1,2,3,4,5,7},
 				t3 = new string[]{"t1","t2","t5"},
 				t4 = new Dictionary<int, string>(){{1,"d1"}, {2, "d3"}},
-				t5 = true,
 				t6 = 120.2f,
 				t7 = 130.222,
 			}
 		},
 	};
 
-	public static TestT OnGetTestTFrom_dTestT(int t0)
+	public static TestT OnGetFrom_dTestT(int t0)
 	{
 		System.Diagnostics.Debug.Assert(dTestT.ContainsKey(t0), $"Invalid t0 {t0}");
 		return dTestT[t0];
