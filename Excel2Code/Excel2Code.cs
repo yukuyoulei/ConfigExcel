@@ -1,4 +1,4 @@
-using NPOI.SS.UserModel;
+﻿using NPOI.SS.UserModel;
 using NPOI.XSSF.UserModel;
 using NPOI.HSSF.UserModel;
 using System;
@@ -98,7 +98,7 @@ namespace Excel2Code
 				var paramName = rowParamName.GetCell(i).ToString();
 				if (string.IsNullOrEmpty(paramName))
 					break;
-				res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}public {rowType.GetCell(i)} {paramName}; //{rowComment.GetCell(i)}");
+				res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}public {GetRealType(rowType.GetCell(i))} {paramName}; //{rowComment.GetCell(i)}");
 			}
 			res = Utils.AppendLine(res, "}");
 			return res;
@@ -122,6 +122,7 @@ namespace Excel2Code
 			var rowComment = sheet.GetRow(0);
 			var firstRowType = rowType.GetCell(0).ToString();
 			var genericList = rowComment.GetCell(0).ToString().ToLower().Contains("list");
+			var allres = "";
 			if (genericList)
 			{
 				res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}public static List<{classname}> {paramname} = new List<{classname}>()");
@@ -143,6 +144,7 @@ namespace Excel2Code
 					}
 					res = Utils.AppendLine(res, $"{Utils.GetTabs(2)}}},");
 				}
+
 			}
 			else
 			{
@@ -151,24 +153,28 @@ namespace Excel2Code
 				var keyType = rowType.GetCell(0).ToString();
 				var keyParamName = paramNameRow.GetCell(0).ToString();
 
+				res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}public static Dictionary<{keyType}, {classname}> {paramname} = new Dictionary<{keyType}, {classname}>();");
 				res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}public static {classname} OnGetFrom_{paramname}({keyType} {keyParamName})");
 				res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}{{");
-				res = Utils.AppendLine(res, $"{Utils.GetTabs(2)}System.Diagnostics.Debug.Assert({paramname}.ContainsKey({keyParamName}), $\"Invalid {keyParamName} {{{keyParamName}}}\");");
-				res = Utils.AppendLine(res, $"{Utils.GetTabs(2)}return {paramname}[{keyParamName}];");
-				res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}}}");
-
-				res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}public static Dictionary<{keyType}, {classname}> {paramname} = new Dictionary<{keyType}, {classname}>()");
-				res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}{{");
+				res = Utils.AppendLine(res, $"{Utils.GetTabs(2)}switch ({keyParamName})");
+				res = Utils.AppendLine(res, $"{Utils.GetTabs(2)}{{");
 				for (int i = 3; i <= sheet.LastRowNum; i++)
 				{
 					var row = sheet.GetRow(i);
-					res = Utils.AppendLine(res, $"{Utils.GetTabs(2)}{{");
-					var srow0 = row.GetCell(0).ToString();
+					var r0 = row.GetCell(0);
+					if (r0 == null)
+						break;
+					var srow0 = r0.ToString();
+					if (string.IsNullOrEmpty(srow0))
+						break;
 					if (firstRowType == "string")
 						srow0 = $"\"{srow0}\"";
-					res = Utils.AppendLine(res, $"{Utils.GetTabs(3)}{srow0}");
-					res = Utils.AppendLine(res, $"{Utils.GetTabs(3)}, new {classname}");
-					res = Utils.AppendLine(res, $"{Utils.GetTabs(3)}{{");
+					allres += srow0 + ",";
+					res = Utils.AppendLine(res, $"{Utils.GetTabs(3)}case {srow0}:");
+					res = Utils.AppendLine(res, $"{Utils.GetTabs(4)}if (!{paramname}.ContainsKey({srow0}))");
+					res = Utils.AppendLine(res, $"{Utils.GetTabs(4)}{{");
+					res = Utils.AppendLine(res, $"{Utils.GetTabs(5)}var data = new {classname}()");
+					res = Utils.AppendLine(res, $"{Utils.GetTabs(5)}{{");
 					for (var j = 0; j < columns; j++)
 					{
 						var realValue = CellToString(row.GetCell(j), rowType.GetCell(j).ToString());
@@ -177,13 +183,19 @@ namespace Excel2Code
 						var paramName = paramNameRow.GetCell(j).ToString();
 						if (string.IsNullOrEmpty(paramName))
 							break;
-						res = Utils.AppendLine(res, $"{Utils.GetTabs(4)}{paramName} = {realValue},");
+						res = Utils.AppendLine(res, $"{Utils.GetTabs(6)}{paramName} = {realValue},");
 					}
-					res = Utils.AppendLine(res, $"{Utils.GetTabs(3)}}}");
-					res = Utils.AppendLine(res, $"{Utils.GetTabs(2)}}},");
+					res = Utils.AppendLine(res, $"{Utils.GetTabs(5)}}};");
+					res = Utils.AppendLine(res, $"{Utils.GetTabs(5)}{paramname}[{srow0}] = data;");
+					res = Utils.AppendLine(res, $"{Utils.GetTabs(4)}}}");
+					res = Utils.AppendLine(res, $"{Utils.GetTabs(4)}return {paramname}[{srow0}];");
 				}
+				res = Utils.AppendLine(res, $"{Utils.GetTabs(2)}}}");
+				res = Utils.AppendLine(res, $"{Utils.GetTabs(2)}return null;");
 			}
-			res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}}};");
+			res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}}}");
+			if (!string.IsNullOrEmpty(allres))
+				res = Utils.AppendLine(res, $"{Utils.GetTabs(1)}public static List<{firstRowType}> all{classname}s = new List<{firstRowType}>(){{{allres}}};");
 			return res;
 		}
 
@@ -225,8 +237,9 @@ namespace Excel2Code
 		/// 获取单元格类型
 		/// </summary>
 		/// <param name="cell">目标单元格</param>
+		/// <param name="OnlyType">是否只判断cell的类型</param>
 		/// <returns></returns>
-		private static string GetValueType(ICell cell)
+		private static string GetValueType(ICell cell, bool OnlyType)
 		{
 			if (cell == null)
 				throw new Exception($"Missing cell");
@@ -236,12 +249,13 @@ namespace Excel2Code
 					return "bool";
 				case CellType.Numeric:
 					return "int";
-				case CellType.String:
 				case CellType.Blank:
+					return "string";
+				case CellType.String:
 				case CellType.Error:
 				case CellType.Formula:
 				default:
-					return "string";
+					return OnlyType ? "string" : cell.ToString();
 			}
 		}
 		private static string GenerateDesc(ISheet sheet)
@@ -253,7 +267,7 @@ namespace Excel2Code
 				var valueType = row.GetCell(0);
 				var valueName = row.GetCell(1).ToString();
 				var value = row.GetCell(2);
-				var realType = valueType == null ? GetValueType(value) : valueType.ToString();
+				var realType = valueType == null ? GetValueType(value, true) : valueType.ToString();
 				var realValue = CellToString(value, realType);
 				if (realValue == null)
 					return res;
@@ -265,31 +279,41 @@ namespace Excel2Code
 			}
 			return res;
 		}
+		private static Dictionary<string, string> drepalace = new Dictionary<string, string>()
+		{
+			{"map", "Dictionary" },
+			{"v2", "DataVector2" },
+			{"v3", "DataVector3" },
+		};
+		private static string GetRealType(ICell cell, string realType = "")
+		{
+			realType = string.IsNullOrEmpty(realType) ? GetValueType(cell, false) : realType;
+			foreach (var kv in drepalace)
+				realType = realType.Replace(kv.Key, kv.Value);
+			return realType;
+		}
 		private static string CellToString(ICell cell, string realType)
 		{
 			if (cell == null)
 				return null;
 			var realValue = cell.ToString();
-			realType = string.IsNullOrEmpty(realType) ? GetValueType(cell) : realType;
+			realType = GetRealType(cell, realType);
 			if (realType == "bool")
 				realValue = realValue.ToLower();
 			else if (realType == "string" && !realValue.EndsWith("\""))
 				realValue = $"\"{realValue}\"";
 			else if (realType.EndsWith("[]"))
 				realValue = $"new {realType}{{{realValue}}}";
-			else if (realType == "float" && !realValue.EndsWith("f"))
-				realValue = $"{realValue}f";
+			else if (realType == "float")
+				realValue = $"{realValue}{(!realValue.EndsWith("f") ? "f" : "")}";
 			else if (realType.StartsWith("Dictionary<"))
-				realValue = $"new {realType}(){realValue}";
-			else if (realType.StartsWith("v"))
+				if (realValue.StartsWith("{{"))
+					realValue = $"new {realType}(){realValue}";
+				else
+					realValue = $"new {realType}(){{{realValue}}}";
+			else if (realType.StartsWith("Data"))
 			{
-				var res = $"new {realType}(){{";
-				var avalues = realValue.ToString().Split(',');
-				for (var i = 0; i < avalues.Length; i++)
-				{
-					res += $"field{i} = {avalues[i]},";
-				}
-				res += "}";
+				var res = $"new {realType}().FromString(\"{realValue}\")";
 				realValue = res;
 			}
 			return realValue;
