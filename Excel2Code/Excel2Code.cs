@@ -321,7 +321,7 @@ namespace Excel2Code
                 res = Utils.AppendLine(res, $"{Utils.GetTabs(3)}}}");
                 res = Utils.AppendLine(res, $"{Utils.GetTabs(3)}return null;");
             }
-            res = Utils.AppendLine(res, $"{Utils.GetTabs(2)}}}");
+            res = Utils.AppendLine(res, $"{Utils.GetTabs(2)}}}{(genericList ? ";" : "")}");
             if (!string.IsNullOrEmpty(allres))
             {
                 res = Utils.AppendLine(res, $"{Utils.GetTabs(2)}public static List<{firstRowType}> all{classname}s = new List<{firstRowType}>()");
