@@ -11,6 +11,7 @@ ConfigExcel 是一款基于 C# 代码热更新方案（如 ILRuntime / HybridCLR
 *   **易于上手**：无需学习新的数据格式或配置方式，直接使用 Excel 进行数据管理。
 *   **跨平台兼容**：生成的 C# 代码具有良好的跨平台特性。
 *   **热更新友好**：生成的C#代码可以直接集成到热更新的DLL中，方便数据和代码的同步更新。
+*   **增量生成 (Incremental Generation)**：通过 `history.txt` 文件记录已处理 Excel 的最后修改时间，自动跳过未更改的文件，提高重复执行时的效率。
 
 ## 主要功能 (Key Features)
 
@@ -35,23 +36,31 @@ ConfigExcel 是一款基于 C# 代码热更新方案（如 ILRuntime / HybridCLR
     *   Sheet 名称不以 `#` 开头的表格，会被识别为数据表。
     *   表格结构：第一行为注释，第二行为变量名，第三行为数据类型。
 
-*   **Sheet 名为 "类名 变量名" 格式**:
-    *   当 Sheet 名的格式为“单词 空格 单词”（例如："PlayerData mPlayerData"）时，Sheet 名会被解析为“类名”和“变量名”。
+*   **Sheet 名为 "类名 变量名" 或 "模块名 类名 变量名" 格式**:
+    *   当 Sheet 名的格式为两段式“NameOne NameTwo”（或使用 `|` 分隔：“NameOne | NameTwo”）时，`NameTwo` 会被作为类名，`NameOne` 通常代表模块或分类，解析后的变量名为 `mNameTwo` (单个实例) / `dNameTwo` (字典) / `lNameTwo` (列表)。
+    *   当 Sheet 名的格式为三段式“NameOne NameTwo NameThree”（或使用 `|` 分隔：“NameOne | NameTwo | NameThree”）时，`NameThreeData` 会被作为类名，`NameOne` 和 `NameTwo` 通常代表模块或分类，解析后的变量名为 `mNameThreeData` / `dNameThreeData` / `lNameThreeData`。
     *   **成员变量**: 当表格除去表头（注释、变量名、数据类型行）后只有一行有效数据时，该 Sheet 会被识别为类的单个成员变量。
     *   **类字典**: 如果表格中有多行数据，该 Sheet 会被识别为该类的字典，键的类型由第一列决定，值为类实例，即 `Dictionary<第一列的数据类型, 类实例>`。
-    *   **类列表**: 如果表格第一行第一列中包含 `list` 关键字，该 Sheet 会被识别为该类的列表，即 `List<类实例>`。
+    *   **类列表**: 如果表格第一行（注释行）第一列中包含 `list` 关键字，该 Sheet 会被识别为该类的列表，即 `List<类实例>`。
 
 *   **Sheet 名为单个词 (类名)**:
     *   当 Sheet 名只有一个单词时（例如："GlobalConfig"），该单词会被识别为类名。
     *   这种情况下，生成的变量名会根据具体内容自动识别并添加前缀：
-        *   `m类名` (例如：`mGlobalConfig`)，通常用于单个实例对象。
-        *   `d类名` (例如：`dGlobalConfig`)，通常用于字典。
-        *   `l类名` (例如：`lGlobalConfig`)，通常用于列表。
+        *   `d类名` (例如：`dGlobalConfig`)，通常用于字典 (`Dictionary<key, GlobalConfig>`)。
+        *   `m类名` (例如：`mGlobalConfig`)，当代码生成为列表时 (例如 `List<GlobalConfig>`)，或作为单个实例对象时（后者通常源于如“成员变量”描述中所述的具有单行数据的Sheet），变量名均使用 `m` 前缀。
+
+*   **以 `=` 开头的 Sheet (扩展数据表)**:
+    *   这类 Sheet 用于扩展其前方最近一个主数据表（定义了字典的 Sheet）的数据。它们的内容会合并到主数据表的字典中。例如，如果 `MyDataSheet` 定义了一个字典，并且其后紧跟着 `=SheetPart2` 和 `=SheetPart3`，那么 `=SheetPart2` 和 `=SheetPart3` 中的数据将被添加到 `MyDataSheet` 的字典里。
+
+*   **以 `Sheet` 开头的 Sheet (忽略处理)**:
+    *   以 Excel 默认命名模式 `Sheet` 开头（例如 `Sheet1`, `Sheet2` 等）的 Sheet 将被忽略，不进行处理。
 
 ### 支持的数据类型
 *   支持各种 C# 基础数据类型 (如 `int`, `string`, `bool`, `float` 等)，需要确保 Excel 中填充的内容与声明的类型匹配。
 *   支持基础类型的数组 (如 `int[]`, `string[]`)，同样需要确保填充内容合法。
 *   支持 Key 和 Value 均为基础类型的字典 (如 `Dictionary<int, string>`)，需要确保填充内容合法。
+*   支持用户自定义的复杂类型，如果其名称以 `Data` 开头或结尾（例如 `MyCustomData`），或者使用特定的短语如 `v2`, `v3`, `v2[]`, `v3[]`（这些会分别映射到 `DataVector2`, `DataVector3`, `DataVector2[]`, `DataVector3[]`）。工具会尝试将单元格内容构造成 `new ClassName()` 或 `new ClassName[]{}` 的形式。用户需要确保这些自定义类在项目中已定义。
+*   支持类型别名：在 Excel 中可使用 `map` 或 `dic` 来代表 `Dictionary` 类型。同时，`luatable` 和 `luacode` 也会被直接转换为 `string` 类型。例如，类型列中填写 `map<int,string>` 等同于 `Dictionary<int,string>`。
 
 ## 环境要求 (Prerequisites/Requirements)
 
@@ -62,16 +71,21 @@ ConfigExcel 是一款基于 C# 代码热更新方案（如 ILRuntime / HybridCLR
 您可以通过以下几种方式运行 `Excel2Code.exe`：
 
 1.  **导出指定目录下的所有 Excel 文件：**
-    打开命令行工具，执行以下命令（假设 `Excels` 是存放 Excel 文件的目录）：
+    打开命令行工具，执行以下命令（以 `Excels` 作为存放 Excel 文件的目录为例）：
     ```bash
-    Excel2Code.exe -dir Excels
+    Excel2Code.exe -dir Excels -out ./GeneratedCode -compile ./GeneratedCode -ignore SecretTable,OldData
     ```
+    *   `-dir <Excel目录>`: 必需参数，指定包含 Excel 文件的目录。
+    *   `-out <输出目录>`: 可选参数，指定生成的 C# 代码文件 (`.cs`) 的输出目录。如果未提供此参数，则不会生成代码文件。
+    *   `-compile <编译目录>`: 可选参数，指定包含要编译的 C# 代码文件的目录（通常与 `-out` 目录相同）。如果提供此参数，工具会在代码生成后尝试将该目录中的所有 `.cs` 文件编译成一个临时的 `temp.dll`。编译成功会提示，编译失败会显示错误。这个过程有助于快速验证生成的代码是否语法正确，并且为需要动态加载DLL的热更新方案提供了一种可能性。如果编译失败，会输出详细错误信息。当编译成功后，`temp.dll` 会被自动删除，它主要用于即时验证。如果未提供此参数，则不执行编译步骤。
+    *   `-ignore <文件名列表>`: 可选参数，提供一个逗号分隔的 Excel 文件名列表（无需扩展名），这些文件将被忽略处理。例如：`-ignore SecretTable,OldData`。
 
 2.  **导出指定的若干个 Excel 文件：**
-    打开命令行工具，执行以下命令，列出所有需要导出的文件路径：
+    打开命令行工具，执行以下命令，列出所有需要导出的文件路径。这种方式下，如果未指定 `-out` 参数，生成的 C# 代码将默认输出到程序运行目录下的 `./exportcsharp` 文件夹中。
     ```bash
-    Excel2Code.exe Excels/test.xlsx Excels/other1.xlsx Excels/other2.xlsx
+    Excel2Code.exe Excels/test.xlsx Excels/other1.xlsx Excels/other2.xlsx -out ./SpecificCode
     ```
+    同样可以配合使用 `-compile` 参数 (如果 `-out` 未指定，`-compile` 将作用于 `./exportcsharp` 目录)。`-ignore` 参数仅在与 `-dir` 参数一同使用时生效。
 
 3.  **通过交互模式导出：**
     直接双击 `Excel2Code.exe` 文件，程序会提示您输入包含 Excel 文件的目录路径。
