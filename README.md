@@ -11,9 +11,42 @@ ConfigExcel 是一款基于 C# 代码热更新方案（如 ILRuntime / HybridCLR
 *   **易于上手**：无需学习新的数据格式或配置方式，直接使用 Excel 进行数据管理。
 *   **跨平台兼容**：生成的 C# 代码具有良好的跨平台特性。
 *   **热更新友好**：生成的C#代码可以直接集成到热更新的DLL中，方便数据和代码的同步更新。
-*   **增量生成 (Incremental Generation)**：通过 `history.txt` 文件记录已处理 Excel 的最后修改时间，自动跳过未更改的文件，提高重复执行时的效率。
+
+## 推荐使用方法：在 Unity 编辑器中使用 (Recommended Usage: Using in Unity Editor)
+
+对于在 Unity 项目中使用此工具的开发者，我们推荐直接在编辑器内集成和使用，这样可以更便捷地管理和生成代码。
+
+此方法允许您直接在 Unity 编辑器中从 Excel 文件生成 C# 代码，无需使用独立的 `Excel2Code.exe` 程序。
+
+### 设置步骤
+
+1.  将 `UnityDemo/Assets/Editor/AutoExcel/` 目录下的以下文件复制到您 Unity 项目的 `Assets/Editor/` 文件夹下的任意子目录中：
+    *   `ConfigExcel.cs`
+    *   `Excel2Code.cs`
+    *   `Utils.cs`
+2.  将 `UnityDemo/Assets/Editor/AutoExcel/EPPlus.dll` 文件复制到您的 Unity 项目中 (例如，放到 `Assets/Plugins/` 或 `Assets/Editor/` 下的某个目录)。这是在 Unity 环境下解析 Excel 文件所需的库。
+
+### Unity 中的使用方法
+
+完成上述设置后，Unity 编辑器顶部菜单栏会出现 "Tools > ConfigExcel" 选项。点击该菜单项会打开一个窗口，您可以在其中指定包含 Excel 文件的输入目录、C# 代码的输出目录以及需要忽略的文件列表（逗号分隔，无需扩展名）。点击 "导出Excel" 按钮即可开始生成代码。
+
+### 与独立版 (.exe) 的主要区别
+
+*   **Excel 解析库 (Excel Parsing Library):** Unity 版本使用 `EPPlus.dll`，而独立版使用 NPOI。因此，`EPPlus.dll` 是 Unity 集成所必需的。
+*   **无代码编译 (No Code Compilation):** 此集成脚本不包含编译生成后 C# 代码的功能。您需要依赖 Unity自身的编译流程。
+*   **无历史记录/增量生成 (No History/Incremental Generation):** Unity 版本不使用 `history.txt`，每次都会重新生成所有指定文件。
+*   **Sheet 命名规则差异 (Sheet Naming Rule Differences):**
+    *   不支持 `|` 作为 Sheet 名称中的分隔符 (仅支持空格)。
+    *   不支持以 `=` 开头的 Sheet 用于扩展数据。
+    *   Unity 版本目前不会显式忽略名为 `Sheet1`, `Sheet2` 等的默认工作表，但如果它们不符合其他解析规则，也可能不会被处理。
+*   **类型替换差异 (`drepalace`):** Unity 版本中可用的类型替换较少 (例如，不支持 `dic`, `v2[]`, `v3[]`, `luatable`, `luacode` 的直接替换)。
+*   **自定义数据类处理 (Custom Data Class Handling):** 如果您在 Excel 中定义了需要工具实例化的自定义类 (例如，类型列填写为 `MyData`)，该类在 Unity 版本中需要有一个 `public void FromString(string excelData)` 方法来从 Excel单元格的字符串内容初始化自身。例如：`public class MyData { public void FromString(string excelData) { /* 解析 excelData 并填充字段 */ } }`。
+*   **命名空间 (Namespace):** Unity 版本生成的 C# 代码不包含外层命名空间 (例如 `namespace ConfigExcel {...}` 被移除)。
+*   **输出信息 (Output Messages):** 使用 `UnityEngine.Debug.Log` 输出日志。
 
 ## 主要功能 (Key Features)
+
+**注意：** 以下描述的许多功能和规则主要基于独立版 `Excel2Code.exe`。Unity 编辑器集成版本在某些方面（如Sheet命名、部分类型支持、无编译步骤等）存在差异。具体差异请参考“推荐使用方法：在 Unity 编辑器中使用”部分下的“与独立版 (.exe) 的主要区别”表格。核心的数据转换逻辑是相似的。
 
 ### 导出 Excel 文件
 *   **导出目录中的所有 Excel 文件**:
@@ -64,9 +97,16 @@ ConfigExcel 是一款基于 C# 代码热更新方案（如 ILRuntime / HybridCLR
 
 ## 环境要求 (Prerequisites/Requirements)
 
-请确保已安装 .NET 5.0 或更高版本。
+### 对于独立版 `Excel2Code.exe`
+*   请确保已安装 .NET 5.0 或更高版本。
 
-## 使用方法 (Usage)
+### 对于 Unity 编辑器集成
+*   需要将 `EPPlus.dll` 添加到项目中（`UnityDemo` 文件夹内已提供此文件）。
+*   对 Unity 编辑器本身的版本无特殊要求，能够正常运行您的 Unity 项目即可。
+
+## 备选方法：使用独立版 Excel2Code.exe (Alternative Method: Using Standalone Excel2Code.exe)
+
+除了在 Unity 编辑器中直接使用外，您也可以使用独立的 `Excel2Code.exe` 程序来生成代码。此独立版本拥有一些特有功能，例如通过 `history.txt` 实现的**增量生成**（自动跳过未更改的 Excel 文件以提高效率）、将生成的代码**直接编译成 DLL**，以及更全面的**Sheet命名规则**和**类型别名**支持。当您需要在 Unity 环境之外处理 Excel 文件，或者需要这些特定功能时，可以选用此方法。
 
 您可以通过以下几种方式运行 `Excel2Code.exe`：
 
@@ -95,7 +135,7 @@ ConfigExcel 是一款基于 C# 代码热更新方案（如 ILRuntime / HybridCLR
 在 `Excel2Code.exe` 工具的执行目录下（通常在 `bin/Debug/net5.0/` 或类似路径下），您可以找到：
 *   示例 Excel 文件位于该执行目录下的 `Excels/` 子目录内。这些示例覆盖了目前支持的各种配置写法。
 *   生成的 C# 代码样例位于该执行目录下的 `Codes/` 子目录内。
-建议参考这些示例以深入了解具体用法和配置规则。
+建议参考这些示例以深入了解具体用法和配置规则。这些示例主要演示了独立版 `Excel2Code.exe` 的配置方法。对于 Unity 版本，Excel 表格本身的结构和数据填写方式基本一致，但部分高级命名规则或类型支持可能存在差异，请务必参考“与独立版 (.exe) 的主要区别”部分的说明。
 
 ## 许可证 (License)
 
