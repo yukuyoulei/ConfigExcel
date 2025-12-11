@@ -31,17 +31,19 @@ namespace Excel2Code
                         else if (args[i] == "-ignore")
                             ignores = args[i + 1];
                     }
-                    Excel2Code.GenerateFromDir(args[1], outdir, compiledir, ignores.Split(','));
+                    Excel2Code.GenerateFromDir(args[1], outdir, compiledir, ignores.Split(',', StringSplitOptions.RemoveEmptyEntries));
                 }
                 else if (args[0] == "-autoc")
                 {
 
                 }
                 else
+                {
                     foreach (var f in args)
                     {
                         Excel2Code.Generate(f, outdir);
                     }
+                }
             }
             catch (Exception ex)
             {
