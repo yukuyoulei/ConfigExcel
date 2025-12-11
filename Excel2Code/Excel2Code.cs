@@ -159,10 +159,15 @@ namespace Excel2Code
         private static List<string> subClasses = new List<string>();
         static List<ISheet> pendingSheets = new();
         private static string configClassName;
+        private static HashSet<string> customNamespaces = new HashSet<string>();
+
         public static void Generate(string file, string outdir)
         {
             Console.WriteLine($"Generated {file}");
             ExportingFile = file;
+
+            // Clear custom namespaces for this file
+            customNamespaces.Clear();
 
             var finfo = new FileInfo(file);
             string fileExt = finfo.Extension.ToLower();
@@ -175,12 +180,32 @@ namespace Excel2Code
             res.AppendLine("//");
             res.AppendLine("using System;");
             res.AppendLine("using System.Collections.Generic;");
+
+            // First pass: collect all ##namespace directives by scanning each sheet
+            OptimizedExcelProcessor.ProcessExcelFile(file, sheet =>
+            {
+                // Collect ##namespace directives from all sheets
+                // This will be done by GetDataStartRow() internally
+                var name = sheet.SheetName;
+                if (!name.StartsWith("#") && !name.StartsWith("Sheet"))
+                {
+                    GetDataStartRow(sheet); // This collects ##namespace directives
+                }
+            });
+
+            // Add custom namespace using statements
+            foreach (var ns in customNamespaces.OrderBy(x => x))
+            {
+                res.AppendLine($"using {ns};");
+            }
+
+            // Start class definition
             //res.AppendLine("namespace ConfigExcel");
             //res.AppendLine("{");
             res.AppendLine($"public partial class {configClassName}");
             res.AppendLine("{");
 
-            // Use optimized processor for better performance
+            // Second pass: generate actual code
             OptimizedExcelProcessor.ProcessExcelFile(file, sheet =>
             {
                 var name = sheet.SheetName;
@@ -220,6 +245,205 @@ namespace Excel2Code
             Console.WriteLine($"Generated {path}");
         }
 
+        /// <summary>
+        /// Process preprocessor directives (##namespace, etc.) from the first row of a sheet
+        /// </summary>
+        private static void ProcessPreprocessorDirectives(ISheet sheet)
+        {
+            if (sheet == null || sheet.LastRowNum < 0)
+                return;
+
+            var firstRow = sheet.GetRow(sheet.FirstRowNum);
+            if (firstRow == null)
+                return;
+
+            var firstCell = firstRow.GetCell(0);
+            if (firstCell == null)
+                return;
+
+            var cellValue = firstCell.ToString()?.Trim();
+            if (string.IsNullOrEmpty(cellValue))
+                return;
+
+            // Check for ## preprocessor directives
+            if (cellValue.StartsWith("##"))
+            {
+                var directive = cellValue.Substring(2).Trim();
+
+                // ##namespace directive: ##namespace Server, Client
+                if (directive.StartsWith("namespace"))
+                {
+                    var namespaceDecl = directive.Substring("namespace".Length).Trim();
+                    if (!string.IsNullOrEmpty(namespaceDecl))
+                    {
+                        // Split by comma and add each namespace
+                        var namespaces = namespaceDecl.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                        foreach (var ns in namespaces)
+                        {
+                            var trimmedNs = ns.Trim();
+                            if (!string.IsNullOrEmpty(trimmedNs))
+                            {
+                                customNamespaces.Add(trimmedNs);
+                            }
+                        }
+                    }
+                }
+                // Future directives can be added here (##import, ##define, etc.)
+            }
+        }
+
+        /// <summary>
+        /// Check if a row should be skipped. Returns true if the row starts with # or ##.
+        /// If it starts with ##, process the preprocessor directive first.
+        /// </summary>
+        private static bool ShouldSkipRow(ICell firstCell)
+        {
+            if (firstCell == null)
+                return false;
+
+            var cellValue = firstCell.ToString()?.Trim();
+            if (string.IsNullOrEmpty(cellValue))
+                return false;
+
+            // Check for ## preprocessor directives
+            if (cellValue.StartsWith("##"))
+            {
+                // Process the directive (for data rows, not sheet-level)
+                var directive = cellValue.Substring(2).Trim();
+
+                // ##namespace directive in data rows
+                if (directive.StartsWith("namespace"))
+                {
+                    var namespaceDecl = directive.Substring("namespace".Length).Trim();
+                    if (!string.IsNullOrEmpty(namespaceDecl))
+                    {
+                        var namespaces = namespaceDecl.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                        foreach (var ns in namespaces)
+                        {
+                            var trimmedNs = ns.Trim();
+                            if (!string.IsNullOrEmpty(trimmedNs))
+                            {
+                                customNamespaces.Add(trimmedNs);
+                            }
+                        }
+                    }
+                }
+                // Skip this row after processing
+                return true;
+            }
+
+            // Check for single # comment
+            if (cellValue.StartsWith("#"))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Get the actual data start row index, skipping all ## preprocessor directives and # comments at the beginning
+        /// Note: User guarantees that all ##namespace directives are at the top (before any data rows)
+        /// Single # comment rows can appear anywhere and will be skipped
+        /// </summary>
+        private static int GetDataStartRow(ISheet sheet)
+        {
+            int startRow = 0;
+
+            // Skip all ## preprocessor directives and # comments at the beginning
+            while (startRow <= sheet.LastRowNum)
+            {
+                var row = sheet.GetRow(startRow);
+                if (row == null)
+                {
+                    startRow++;
+                    continue;
+                }
+
+                var firstCell = row.GetCell(0);
+                if (firstCell == null)
+                {
+                    break;
+                }
+
+                var cellValue = firstCell.ToString()?.Trim();
+                if (string.IsNullOrEmpty(cellValue))
+                {
+                    break;
+                }
+
+                // Process ## directives (they are guaranteed to be at the top)
+                if (cellValue.StartsWith("##"))
+                {
+                    // Process the directive
+                    var directive = cellValue.Substring(2).Trim();
+                    if (directive.StartsWith("namespace"))
+                    {
+                        var namespaceDecl = directive.Substring("namespace".Length).Trim();
+                        if (!string.IsNullOrEmpty(namespaceDecl))
+                        {
+                            var namespaces = namespaceDecl.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                            foreach (var ns in namespaces)
+                            {
+                                var trimmedNs = ns.Trim();
+                                if (!string.IsNullOrEmpty(trimmedNs))
+                                {
+                                    customNamespaces.Add(trimmedNs);
+                                }
+                            }
+                        }
+                    }
+                    // Skip this row after processing
+                    startRow++;
+                    continue;
+                }
+
+                // Skip # comment rows
+                if (cellValue.StartsWith("#"))
+                {
+                    startRow++;
+                    continue;
+                }
+
+                // Found the first non-# and non-## row (actual data header)
+                // This is the start of data section
+                break;
+            }
+
+            return startRow;
+        }
+
+        /// <summary>
+        /// Get the next non-comment row starting from the given row index
+        /// Skips rows that start with # or ##
+        /// Returns tuple of (IRow, rowIndex)
+        /// </summary>
+        private static (IRow row, int index) GetNextNonCommentRow(ISheet sheet, int startFromRow)
+        {
+            for (int i = startFromRow; i <= sheet.LastRowNum; i++)
+            {
+                var row = sheet.GetRow(i);
+                if (row == null)
+                    continue;
+
+                var firstCell = row.GetCell(0);
+                if (firstCell == null)
+                    return (row, i);
+
+                var cellValue = firstCell.ToString()?.Trim();
+                if (string.IsNullOrEmpty(cellValue))
+                    return (row, i);
+
+                // Skip comment rows
+                if (cellValue.StartsWith("#"))
+                    continue;
+
+                // Found a non-comment row
+                return (row, i);
+            }
+
+            return (null, -1);
+        }
 
         private static string GenerateSubDataClass(ISheet sheet)
         {
@@ -239,9 +463,12 @@ namespace Excel2Code
             var res = new StringBuilder();
             res.AppendLine($"{Utils.GetTabs(1)}public partial class {classname}");
             res.AppendLine($"{Utils.GetTabs(1)}{{");
-            var rowComment = sheet.GetRow(0);
-            var rowType = sheet.GetRow(1);
-            var rowParamName = sheet.GetRow(2);
+
+            // Get actual start row, skipping ## directives and # comments
+            var startRow = GetDataStartRow(sheet);
+            var (rowComment, commentIdx) = GetNextNonCommentRow(sheet, startRow);
+            var (rowType, typeIdx) = GetNextNonCommentRow(sheet, commentIdx + 1);
+            var (rowParamName, paramIdx) = GetNextNonCommentRow(sheet, typeIdx + 1);
             for (var i = 0; i < rowType.LastCellNum; i++)
             {
                 var paramName = rowParamName.GetCell(i)?.ToString();
@@ -275,22 +502,30 @@ namespace Excel2Code
             paramname = $"m{classname}";
             var res = new StringBuilder();
 
-            var paramNameRow = sheet.GetRow(2);
+            // Get actual start row, skipping ## directives and # comments
+            var startRow = GetDataStartRow(sheet);
+            var (rowComment, commentIdx) = GetNextNonCommentRow(sheet, startRow);
+            var (rowType, typeIdx) = GetNextNonCommentRow(sheet, commentIdx + 1);
+            var (paramNameRow, paramIdx) = GetNextNonCommentRow(sheet, typeIdx + 1);
             var columns = paramNameRow.LastCellNum;
-            var rowType = sheet.GetRow(1);
-            var rowComment = sheet.GetRow(0);
             var firstRowType = GetRealType(rowType.GetCell(0));
             var genericList = rowComment.GetCell(0).ToString().ToLower().Contains("list");
             var allres = new StringBuilder();
+            var dataStartRow = paramIdx + 1; // Data starts after param name row
             if (genericList)
             {
                 res.AppendLine($"{Utils.GetTabs(2)}public static List<{classname}> {paramname} = new List<{classname}>()");
                 res.AppendLine($"{Utils.GetTabs(2)}{{");
-                for (int i = 3; i <= sheet.LastRowNum; i++)
+                for (int i = dataStartRow; i <= sheet.LastRowNum; i++)
                 {
+                    var row = sheet.GetRow(i);
+                    // Skip rows that start with # or ##
+                    var firstCell = row?.GetCell(0);
+                    if (ShouldSkipRow(firstCell))
+                        continue;
+
                     res.AppendLine($"{Utils.GetTabs(3)}new {classname}");
                     res.AppendLine($"{Utils.GetTabs(3)}{{");
-                    var row = sheet.GetRow(i);
                     for (var j = 0; j < columns; j++)
                     {
                         var realValue = CellToString(row.GetCell(j), rowType.GetCell(j).ToString());
@@ -368,7 +603,7 @@ namespace Excel2Code
                 //}
                 //dicres.AppendLine($"{Utils.GetTabs(2)}}};");
 
-                for (int i = 3; i <= sheet.LastRowNum; i++)
+                for (int i = dataStartRow; i <= sheet.LastRowNum; i++)
                 {
                     var row = sheet.GetRow(i);
                     if (row == null)
@@ -379,6 +614,9 @@ namespace Excel2Code
                     var srow0 = r0.ToString();
                     if (string.IsNullOrEmpty(srow0))
                         break;
+                    // Skip rows that start with # or ##
+                    if (ShouldSkipRow(r0))
+                        continue;
                     var rawrow0 = srow0;
                     if (firstRowType == "string")
                     {
@@ -418,12 +656,17 @@ namespace Excel2Code
                 var datares = new StringBuilder();
                 SheetToString(datares, firstRowType, ref allres, columns, paramname
                     , classname, rowType, paramNameRow
-                    , sheet);
+                    , sheet, dataStartRow);
                 foreach (var s in pendingSheets)
                 {
+                    var pendingStartRow = GetDataStartRow(s);
+                    var (pendingRowComment, pendingCommentIdx) = GetNextNonCommentRow(s, pendingStartRow);
+                    var (pendingRowType, pendingTypeIdx) = GetNextNonCommentRow(s, pendingCommentIdx + 1);
+                    var (pendingParamNameRow, pendingParamIdx) = GetNextNonCommentRow(s, pendingTypeIdx + 1);
+                    var pendingDataStartRow = pendingParamIdx + 1;
                     SheetToString(datares, firstRowType, ref allres, columns, paramname
                         , classname, rowType, paramNameRow
-                        , s);
+                        , s, pendingDataStartRow);
                 }
                 //if (datares.Length == 0)
                 //return res.ToString();
@@ -447,9 +690,9 @@ namespace Excel2Code
         private static void SheetToString(StringBuilder res, string firstRowType, ref StringBuilder allres
             , short columns, string paramname, string classname
             , IRow? rowType, IRow? paramNameRow
-            , ISheet sheet)
+            , ISheet sheet, int dataStartRow)
         {
-            for (int i = 3; i <= sheet.LastRowNum; i++)
+            for (int i = dataStartRow; i <= sheet.LastRowNum; i++)
             {
                 var row = sheet.GetRow(i);
                 if (row == null)
@@ -460,6 +703,9 @@ namespace Excel2Code
                 var srow0 = r0.ToString();
                 if (string.IsNullOrEmpty(srow0))
                     break;
+                // Skip rows that start with # or ##
+                if (ShouldSkipRow(r0))
+                    continue;
                 if (firstRowType == "string")
                     srow0 = $"@\"{srow0}\"";
                 allres.AppendLine($"{Utils.GetTabs(4)}{srow0},");
@@ -564,8 +810,19 @@ namespace Excel2Code
             for (int i = sheet.FirstRowNum; i <= sheet.LastRowNum; i++)
             {
                 var row = sheet.GetRow(i);
+                if (row == null)
+                    continue;
+
                 var valueType = row.GetCell(0);
-                var valueName = row.GetCell(1).ToString();
+                // Skip rows that start with # or ##
+                if (ShouldSkipRow(valueType))
+                    continue;
+
+                var valueNameCell = row.GetCell(1);
+                if (valueNameCell == null)
+                    return res.ToString();
+
+                var valueName = valueNameCell.ToString();
                 var value = row.GetCell(2);
                 var comment = row.GetCell(3);
                 var realType = valueType == null ? GetValueType(value, true) : GetRealType(valueType);
@@ -599,10 +856,25 @@ namespace Excel2Code
             if (cell == null)
                 return "";
             realType = string.IsNullOrEmpty(realType) ? GetValueType(cell, false) : realType;
+            realType = realType.Split(':')[0];
+            realType = realType.Replace(" ", "");//过滤掉所有空格
+
+            // Handle Enum types BEFORE drepalace: EnumXXX or XXXEnum -> XXX
+            // This must be done first to avoid incorrect replacements
+            if (realType.StartsWith("Enum") && realType.Length > 4)
+            {
+                realType = realType.Substring(4); // Remove "Enum" prefix
+            }
+            else if (realType.EndsWith("Enum") && realType.Length > 4)
+            {
+                realType = realType.Substring(0, realType.Length - 4); // Remove "Enum" suffix
+            }
+
+            // Apply standard replacements (v2, v3, map, etc.)
             foreach (var kv in drepalace)
                 realType = realType.Replace(kv.Key, kv.Value);
-            realType = realType.Split(':')[0];
-            return realType.Replace(" ", "");//过滤掉所有空格
+
+            return realType;
         }
         private static string CellToString(ICell cell, string realType)
         {
@@ -610,6 +882,19 @@ namespace Excel2Code
             if (string.IsNullOrEmpty(realValue.Trim()))
                 return "";
             realType = GetRealType(cell, realType);
+
+            // Handle Enum values: if value contains a dot and matches the type name, keep it as-is
+            // e.g., HeroType.Magic -> HeroType.Magic
+            if (realValue.Contains("."))
+            {
+                var parts = realValue.Split('.');
+                if (parts.Length == 2 && parts[0].Trim() == realType)
+                {
+                    // This is an enum value, return as-is
+                    return realValue.Trim();
+                }
+            }
+
             if (realType == "bool")
                 realValue = realValue.ToLower() == "true" ? "true" : "false";
             else if (realType == "string" && !realValue.EndsWith("\""))
@@ -648,6 +933,10 @@ namespace Excel2Code
                     }
                     realValue = str;
                 }
+                // Handle Enum arrays: keep enum values as-is (e.g., HeroType.Magic,HeroType.Physical)
+                // Enum values in arrays should already contain the type name prefix
+                // No special processing needed, just wrap in array syntax
+
                 if (realValue.Contains("["))
                 {
                     if (realType.EndsWith("[][]"))
